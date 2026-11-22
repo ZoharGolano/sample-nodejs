@@ -1,7 +1,7 @@
 # Targil2026 - Sample Node.js Application
 # Helm Chart Configuration
 
-replicaCount: 3
+replicaCount: 2
 
 image:
   repository: ghcr.io/zohargolano/sample-nodejs
