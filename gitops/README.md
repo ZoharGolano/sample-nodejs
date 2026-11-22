@@ -436,3 +436,88 @@ Changes to the Helm chart were applied through GitHub pull requests, and Argo CD
 No manual `kubectl scale`, `kubectl apply`, or `helm upgrade` commands were required during either scaling operation.
 
 The application is currently running with two replicas and reports `Synced` and `Healthy` in Argo CD.
+
+
+
+## Application Versioning and Image Promotion
+
+### Versioning Strategy
+
+The project uses Semantic Versioning (MAJOR.MINOR.PATCH) for the Node.js application.
+
+The Helm chart is versioned independently.
+
+Application version information is maintained in:
+
+- `package.json` and `package-lock.json` — application version.
+- `helm/sample-nodejs/Chart.yaml` — Helm chart version and application version.
+- `helm/sample-nodejs/values.yaml` — exact container image deployed by Argo CD.
+
+### Version Bump Procedure
+
+For a patch release, update the application version:
+
+```bash
+npm version patch --no-git-tag-version
+```
+
+When Node.js is not installed on the host, run npm using Docker:
+
+```bash
+docker run --rm --network host \
+  --user "$(id -u):$(id -g)" \
+  -v "$PWD:/app" -w /app \
+  node:22-alpine \
+  npm version patch --no-git-tag-version
+```
+
+Update the Helm chart metadata to match the release:
+
+```yaml
+version: 0.2.1
+appVersion: "1.0.1"
+```
+
+Validate the Helm chart:
+
+```bash
+helm lint helm/sample-nodejs
+```
+
+### CI/CD and Image Publication
+
+After merging the version bump into `main`, GitHub Actions runs application tests, dependency auditing, SAST, Docker image building, and Trivy scanning.
+
+A container image is published to GHCR only when the required checks succeed.
+
+The published image receives a commit-based tag:
+
+```text
+sha-<first-12-characters-of-commit-SHA>
+```
+
+### Image Promotion Through GitOps
+
+Image publication and deployment are separate operations.
+
+The Helm chart uses an explicit image tag, ensuring that deployments reference a specific approved build.
+
+After verifying the new image is available in GHCR, update `helm/sample-nodejs/values.yaml` with the published image tag through a pull request.
+
+Argo CD automatically synchronizes the updated Helm configuration after the pull request is merged into `main`.
+
+This provides a reviewable deployment history and allows previous image versions to be restored through Git.
+
+### Version 1.0.1 Release
+
+The first versioning exercise updates:
+
+| Component | Previous | New |
+|---|---|---|
+| Application | 1.0.0 | 1.0.1 |
+| Helm chart | 0.2.0 | 0.2.1 |
+| Helm appVersion | 1.0.0 | 1.0.1 |
+
+The container image will be promoted separately after successful CI/CD validation.
+
+This approach provides controlled image promotion rather than automatically deploying every newly published image.
