@@ -355,3 +355,84 @@ Helm charts should contain a single definition for each YAML mapping key.
 Always validate rendered Kubernetes manifests, not only the original Helm values.
 
 A successful deployment does not necessarily mean the source configuration is clean or maintainable.
+
+
+
+## Argo CD Automated Synchronization Verification
+
+### Objective
+
+Verify that Argo CD automatically reconciles changes made to the Helm chart in GitHub without requiring manual Kubernetes deployment commands.
+
+### Test Environment
+
+- Kubernetes: K3s v1.37.2+k3s1
+- Argo CD: v3.6.2
+- Application: `sample-nodejs`
+- Namespace: `sample-app`
+- Git repository: `ZoharGolano/sample-nodejs`
+- Target branch: `main`
+
+### Test 1: Scale Up
+
+The Helm configuration was updated through a GitHub pull request:
+
+```yaml
+replicaCount: 3
+```
+
+After merging the pull request, Argo CD detected and synchronized the change.
+
+Observed results:
+
+- Argo CD Sync Status: `Synced`
+- Argo CD Health Status: `Healthy`
+- Deployment: `3/3` replicas available
+- Pods: 3 running
+- Container restarts: 0
+
+The two existing Pods remained running, and Kubernetes created a third Pod.
+
+**Result: PASSED**
+
+### Test 2: Scale Down
+
+The Helm configuration was restored through another GitHub pull request:
+
+```yaml
+replicaCount: 2
+```
+
+After merging the pull request, Argo CD automatically reconciled the Deployment.
+
+Observed results:
+
+- Argo CD Sync Status: `Synced`
+- Argo CD Health Status: `Healthy`
+- Deployment: `2/2` replicas available
+- Pods: 2 running
+- Container restarts: 0
+
+The additional Pod was removed while the original two Pods remained running.
+
+**Result: PASSED**
+
+### Verification Commands
+
+```bash
+kubectl get applications -n argocd
+
+kubectl get deployment sample-nodejs -n sample-app
+
+kubectl get pods -n sample-app
+```
+
+### Conclusion
+
+Both scaling tests completed successfully.
+
+Changes to the Helm chart were applied through GitHub pull requests, and Argo CD automatically synchronized the desired state with the Kubernetes cluster.
+
+No manual `kubectl scale`, `kubectl apply`, or `helm upgrade` commands were required during either scaling operation.
+
+The application is currently running with two replicas and reports `Synced` and `Healthy` in Argo CD.
