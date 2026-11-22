@@ -177,3 +177,99 @@ kubectl logs -n argocd deployment/argocd-repo-server
 After successful synchronization, Argo CD should report the Application as Healthy and Synced.
 
 The Node.js application should run with two replicas and be accessible through the Traefik ingress controller.
+
+
+## Deployment Verification — November 22, 2026
+
+The sample Node.js application was successfully deployed to the K3s cluster using Argo CD.
+
+### Argo CD Status
+
+Command:
+
+```bash
+kubectl get applications -n argocd
+```
+
+Observed result:
+
+```text
+NAME            SYNC STATUS   HEALTH STATUS
+sample-nodejs   Synced        Healthy
+```
+
+### Kubernetes Deployment
+
+Command:
+
+```bash
+kubectl get deployments,pods,svc,ingress -n sample-app
+```
+
+Observed results:
+
+- Deployment: `sample-nodejs`
+- Desired replicas: 2
+- Available replicas: 2
+- Pods: 2 running, 0 restarts
+- Service: `sample-nodejs`, ClusterIP, port 80
+- Ingress controller: Traefik
+- Ingress hostname: `sample-nodejs.test`
+- Ingress addresses: `192.168.122.11`, `192.168.122.12`, `192.168.122.13`
+
+### HTTP Endpoint Validation
+
+The tests were executed from the Ubuntu host against the Traefik ingress controller.
+
+**Application endpoint:**
+
+```bash
+curl -i -H "Host: sample-nodejs.test" \
+  http://192.168.122.11/my-app
+```
+
+Observed status: `HTTP/1.1 200 OK`.
+
+**Readiness endpoint:**
+
+```bash
+curl -i -H "Host: sample-nodejs.test" \
+  http://192.168.122.11/ready
+```
+
+Observed status: `HTTP/1.1 200 OK`.
+
+Observed response: `Ready`.
+
+**Liveness endpoint:**
+
+```bash
+curl -i -H "Host: sample-nodejs.test" \
+  http://192.168.122.11/live
+```
+
+Observed status: `HTTP/1.1 200 OK`.
+
+**Prometheus metrics endpoint:**
+
+```bash
+curl -s -H "Host: sample-nodejs.test" \
+  http://192.168.122.11/metrics | head -n 15
+```
+
+The endpoint returned Prometheus-formatted process metrics, including:
+
+- `process_cpu_user_seconds_total`
+- `process_cpu_system_seconds_total`
+- `process_cpu_seconds_total`
+- `process_start_time_seconds`
+
+### Verification Result
+
+Argo CD reported the application as `Synced` and `Healthy`.
+
+The Deployment had two available replicas, and HTTP requests through Traefik returned successful responses.
+
+The `/metrics` endpoint was accessible and returned Prometheus-formatted metrics.
+
+**Note:** Prometheus scraping and automated reconciliation after a Git change have not yet been tested. These are separate verification steps.
