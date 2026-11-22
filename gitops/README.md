@@ -521,3 +521,104 @@ The first versioning exercise updates:
 The container image will be promoted separately after successful CI/CD validation.
 
 This approach provides controlled image promotion rather than automatically deploying every newly published image.
+
+
+
+## Version 1.0.1 — Release and GitOps Promotion Verification
+
+### Objective
+
+Verify the complete application release process, from version bumping and security validation to image publication and deployment through Argo CD.
+
+### Release Information
+
+| Component | Value |
+|---|---|
+| Application version | 1.0.1 |
+| Helm chart version | 0.2.1 |
+| Helm appVersion | 1.0.1 |
+| Source commit | `9e814c88adadde88d34142d52b63d220113cb707` |
+| Container registry | GitHub Container Registry (GHCR) |
+| Published image | `ghcr.io/zohargolano/sample-nodejs:sha-9e814c88adad` |
+| Kubernetes namespace | `sample-app` |
+| Argo CD Application | `sample-nodejs` |
+
+### Release Workflow
+
+The application version was updated from `1.0.0` to `1.0.1`.
+
+The following files were updated:
+
+- `package.json`
+- `package-lock.json`
+- `helm/sample-nodejs/Chart.yaml`
+
+The version update was reviewed and merged into the `main` branch.
+
+GitHub Actions then executed application tests, dependency auditing, Semgrep SAST, Docker build, and Trivy scanning.
+
+All three CI jobs completed successfully.
+
+The approved Docker image was published to GHCR with a commit-based image tag.
+
+### Image Promotion
+
+The image tag in `helm/sample-nodejs/values.yaml` was updated from:
+
+```text
+sha-554122410ff7
+```
+
+to:
+
+```text
+sha-9e814c88adad
+```
+
+The promotion was performed through GitHub and Argo CD, without manually changing the Kubernetes Deployment.
+
+### Deployment Verification
+
+The following commands were executed:
+
+```bash
+kubectl get application sample-nodejs -n argocd
+
+kubectl rollout status deployment/sample-nodejs -n sample-app
+
+kubectl get pods -n sample-app \
+  -o custom-columns='NAME:.metadata.name,IMAGE:.spec.containers[0].image'
+```
+
+Observed results:
+
+**Argo CD:**
+
+```text
+NAME            SYNC STATUS   HEALTH STATUS
+sample-nodejs   Synced        Healthy
+```
+
+**Kubernetes Deployment:**
+
+```text
+deployment "sample-nodejs" successfully rolled out
+```
+
+**Running Pods:**
+
+```text
+NAME                            IMAGE
+sample-nodejs-5cd64c9df-v7bgc   ghcr.io/zohargolano/sample-nodejs:sha-9e814c88adad
+sample-nodejs-5cd64c9df-vzg2g   ghcr.io/zohargolano/sample-nodejs:sha-9e814c88adad
+```
+
+### Result
+
+**PASSED**
+
+The new container image was successfully deployed to both application Pods.
+
+Argo CD reported the Application as `Synced` and `Healthy`, and Kubernetes confirmed successful rollout completion.
+
+The test demonstrates a controlled release process that separates image building and security validation from deployment promotion through GitOps.
